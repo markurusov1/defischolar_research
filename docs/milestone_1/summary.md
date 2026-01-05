@@ -1,0 +1,24 @@
+# Weeks 1–2 Deliverable: Foundations & Literature Review Summary
+
+DeFi liquidity providers (LPs), especially those using **Uniswap v3 positions** as collateral in lending protocols like Aave or Compound, face frequent liquidations due to **fixed Loan-to-Value (LTV)** models. These static thresholds (typically 65–82% for assets like ETH) fail to account for the unique risks of concentrated liquidity positions, such as rapid **impermanent loss (IL)** when prices move outside chosen ranges.
+
+In contrast, **Traditional Finance (TradFi)** employs **risk-based portfolio margining** (expanded by the SEC in 2006), which stress-tests entire portfolios across multiple price and volatility scenarios (e.g., 10-point shocks of ±6–15%), incorporates full hedging offsets (netting), and adjusts margins dynamically in real-time. This approach recognizes non-linear risks (via valuation points and vega shocks) and allows significantly higher leverage (often 5–10x) for hedged positions while reducing sudden full liquidations through graduated, often automated partial adjustments.
+
+Adopting TradFi-inspired dynamic, IL-aware stress testing in DeFi could dramatically lower liquidation risks, enable safer 80–90% LTV ratios, and unlock greater capital efficiency for LPs.
+
+## Expanded Comparison Table: DeFi Fixed LTV vs. TradFi Portfolio Margin
+
+| Feature                          | DeFi Fixed LTV (e.g., Aave/Compound)                                      | TradFi Portfolio Margin (SEC 2006 Risk-Based)                                      | Implication for Uniswap v3 LPs/Liquidations                              |
+|----------------------------------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| Calculation Method               | Fixed percentage threshold (e.g., 65–82% LTV for ETH)                     | Stress-test entire portfolio at 10+ discrete price/volatility points; margin = worst-case net loss | TradFi captures non-linear IL risks better; fewer surprise liquidations  |
+| Hedge/Offset Recognition         | Limited or none for complex/concentrated positions                        | Comprehensive risk-based netting across all related positions (correlation offsets) | TradFi rewards hedging/rebalancing, reducing effective risk               |
+| Leverage Possible                | Typically 1.2–1.8x (restricted by IL volatility)                           | Often 5–10x+ for diversified/hedged portfolios                                     | TradFi enables "leverage loops" to amplify LP yields without excess risk |
+| Adjustment Frequency             | Static until threshold breached                                           | Real-time/intraday recalculation (reacts to price & IV changes)                    | Prevents binary wipeouts; allows proactive adjustments                   |
+| Liquidation Trigger & Style      | Binary: Full position liquidated at fixed threshold (e.g., health factor <1) | Graduated: Warnings, partial/auto-rebalancing; rare full wipeouts                  | DeFi sees high frequency; TradFi-style could cut liquidations 95–99%     |
+| Risk Sensitivity                 | Low (ignores volatility spikes or non-linearity)                          | High (includes vega/volatility shocks and gamma effects)                           | TradFi protects against "volatility crush" events common in options-like LP positions |
+| Procyclicality                   | Lower (fixed rules provide constant buffer)                               | Higher potential (margins rise in volatility spikes, risking feedback loops)       | Trade-off: TradFi efficiency in calm markets vs. stress amplification    |
+| Treatment of Non-Linear Risks    | Ignores (treats positions linearly)                                       | Captures via multiple valuation points along price curve                           | Critical for v3 concentrated liquidity (IL accelerates outside ranges)   |
+| Cross-Asset Netting              | Minimal                                                           | Full (including cross-margining across futures/ETFs)                               | Could net LP positions against derivatives for near-zero net risk        |
+| Capital Efficiency Goal          | Basic overcollateralization                                               | Maximize leverage while maintaining systemic resilience                            | TradFi unlocks billions in idle DeFi liquidity via safer borrowing       |
+
+This table highlights why TradFi's sophisticated risk-based approach could transform DeFi LP borrowing, reducing liquidations while boosting TVL and fees through leveraged, resilient positions.
