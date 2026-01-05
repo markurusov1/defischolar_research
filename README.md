@@ -13,11 +13,11 @@ The project compares fixed Loan-to-Value (LTV) liquidation models in DeFi lendin
 - Propose improvements: dynamic, IL-aware LTV for safer leverage (5–10x) and higher TVL/fees in Uniswap.
 - Produce a 10–15 page research paper with charts, aimed at competitions like Regeneron STS, JSHS, or Davidson Fellows.
 
-### Timeline (2–4 Months, ~5–10 Hours/Week)
-1. **Weeks 1–2**: Foundations & Literature Review
-2. **Weeks 3–4**: Data Collection & Basic Analysis
-3. **Weeks 5–6**: Simulations & Charts  
-   (Further weeks for writing, revisions, and final paper.)
+### Milestones
+1. Foundations & Literature Review
+2. Data Collection & Basic Analysis
+3. Simulations & Charts  
+4. Writing, revisions, and final paper
 
 ### Repository Structure
 ```
