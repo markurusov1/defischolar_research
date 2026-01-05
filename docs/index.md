@@ -1,6 +1,6 @@
 # Defischolar Research
 
-Welcome to the research materials, data, and scripts for [defischolar.com](https://defischolar.com).
+Welcome to the research materials, data, and scripts for [defischolar.com](https://www.defischolar.com).
 
 ## Project Milestones
 * **[Milestone 1 Material](milestone_1/sec_duffie.md)** — Reading & analysis.
