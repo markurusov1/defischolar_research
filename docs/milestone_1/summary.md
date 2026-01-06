@@ -1,4 +1,4 @@
-# Weeks 1–2 Deliverable: Foundations & Literature Review Summary
+# Foundations & Literature Review Summary
 
 DeFi liquidity providers (LPs), especially those using **Uniswap v3 positions** as collateral in lending protocols like Aave or Compound, face frequent liquidations due to **fixed Loan-to-Value (LTV)** models. These static thresholds (typically 65–82% for assets like ETH) fail to account for the unique risks of concentrated liquidity positions, such as rapid **impermanent loss (IL)** when prices move outside chosen ranges.
 
