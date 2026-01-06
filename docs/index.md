@@ -5,6 +5,7 @@ Welcome to the research materials, data, and scripts for [defischolar.com](https
 ## Project Milestones
 
 ### Milestone 1
+* **[Fundamentals](https://www.defischolar.com/docs/uniswap/)** - Uniswap, Aave, IL and Pools
 * **[Reading & analysis](milestone_1/sec_duffie.md)** — SEC 2006 Portfolio Margin Rule and Duffie's Risk-based Haircut.
 * **[Structured summary](milestone_1/summary.md)** — Foundations & Literature Review Summary
 
