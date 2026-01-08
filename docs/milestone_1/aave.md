@@ -40,9 +40,11 @@ Using a Uniswap LP position as collateral:
    
    $$HF = \frac{6,000 \times 0.70}{3,500} = \frac{4,200}{3,500} = 1.20 \quad (\text{Safe})$$
 
-3. After a Market Drop
-   If the collateral value falls to $\$4,984$ due to price action or impermanent loss:
-   $$HF = \frac{4,984 \times 0.70}{3,500} \approx \frac{3,488.8}{3,500} \approx 0.9968$$
+2. After a Market Drop
+   If the collateral value falls to \$4,984 due to price action or impermanent loss:
+
+   $HF = \frac{4,984 \times 0.70}{3,500} \approx \frac{3,488.8}{3,500} \approx 0.9968$
+   
    Since $HF < 1$, the position is now eligible for liquidation.
 
 ### Risk Implications
