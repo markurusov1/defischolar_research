@@ -122,13 +122,12 @@ This simulation shows exactly what happens to your $6,000 Uniswap LP position as
    750$ (half your debt). However, you don't just lose $\$1,750$ of collateral. 
 2. You lose: $\text{Debt Repaid} + \text{Liquidation Bonus} = \$1,750 + (10\% \times \$1,750) = \$1,925$
 3. The $\$175$ is the "penalty"—this is the value that vanishes from your pocket and goes to the liquidator as a reward. 
-4. The "Safety Reset" Notice that after the liquidation at a $17\%$ drop, your New Health Factor would jump from $0.99$ back up to $\approx 1.22$
-
+4. The "Safety Reset" Notice that after the liquidation at a $17\%$ drop, your New Health Factor would jump from $0.
+   99$ back up to $\approx 1.22$
 - **Before:** $\frac{\$4,980 \times 0.70}{\$3,500} = 0.99$
 - **After:** $\frac{\$3,055 \times 0.70}{\$1,750} = 1.22$
-
-The protocol intentionally takes enough collateral to make your remaining position "safe" again, preventing a 
-continuous loop of liquidations.  
+- The protocol intentionally takes enough collateral to make your remaining position "safe" again, preventing a 
+continuous loop of liquidations
 5. Impact of Larger Drops: As the price drops further, the amount you lose increases because your Health Factor 
    drops more, triggering larger liquidations. At a $30\%$ drop, your New Health Factor after the first liquidation 
    is only $0.91$, meaning you are still undercollateralized and at risk of another liquidation.
