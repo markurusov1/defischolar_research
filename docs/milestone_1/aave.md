@@ -118,15 +118,18 @@ This simulation shows exactly what happens to your $\$6,000$ Uniswap LP position
 - Close Factor: $50\%$ (The protocol liquidates half your debt to restore health)
 
 #### Key Takeaways from the Math
-1. The "Extra" Loss (The Penalty)When the $17\%$ drop occurs, your $HF$ falls to $0.996$. A liquidator repays $\$1,750$ (half your debt). However, you don't just lose $\$1,750$ of collateral. You lose:$$\text{Debt Repaid} + \text{Liquidation Bonus} = \$1,750 + (10\% \times \$1,750) = \$1,925$$The $\$175$ is the "penalty"—this is the value that vanishes from your pocket and goes to the liquidator as a reward.
-2. The "Safety Reset" Notice that after the liquidation at a $17\%$ drop, your New Health Factor would jump from $0.
-   99$ back up to $\approx 1.22$
-- **Before:** $$\frac{\$4,980 \times 0.70}{\$3,500} = 0.99$$
-- **After:** $$\frac{\$3,055 \times 0.70}{\$1,750} = 1.22$$
+1. The "Extra" Loss (The Penalty)When the $17\%$ drop occurs, your $HF$ falls to $0.996$. A liquidator repays $\$1,750$ (half your debt). However, you don't just lose $\$1,750$ of collateral. 
+2. You lose: $\text{Debt Repaid} + \text{Liquidation Bonus} = \$1,750 + (10\% \times \$1,750) = \$1,925$
+3. The $\$175$ is the "penalty"—this is the value that vanishes from your pocket and goes to the liquidator as a reward. 
+4. The "Safety Reset" Notice that after the liquidation at a $17\%$ drop, your New Health Factor would jump from $0.99$ back up to $\approx 1.22$
+- **Before:** $\frac{\$4,980 \times 0.70}{\$3,500} = 0.99$
+- **After:** $\frac{\$3,055 \times 0.70}{\$1,750} = 1.22$
 
-The protocol intentionally takes enough collateral to make your remaining position "safe" again, preventing a continuous loop of liquidations.
-3. Why You Don't Lose "Everything" Unless the price of your collateral crashes to zero instantly, you are left with the remaining collateral ($\$3,055$ in the $17\%$ drop scenario). You still own that asset; it is just a smaller amount than you started with.
-4. The Danger of "Cascading" LiquidationIf the price drops $30\%$ or more, even after the first liquidation, your $HF$ might stay below $1.0$. In the table above, at a $30\%$ drop, the New $HF$ after the first liquidation is only $0.91$. This would trigger a second liquidation immediately, taking another chunk of your collateral and another penalty fee.
+The protocol intentionally takes enough collateral to make your remaining position "safe" again, preventing a continuous loop of liquidations. 
+5. Why You Don't Lose "Everything" Unless the price of your collateral crashes to zero instantly, you are left with 
+the remaining collateral ($\$3,055$ in the $17\%$ drop scenario). You still own that asset; it is just a smaller amount than you started with.
+6. The Danger of "Cascading" LiquidationIf the price drops $30\%$ or more, even after the first liquidation, your $HF$ 
+   might stay below $1.0$. In the table above, at a $30\%$ drop, the New $HF$ after the first liquidation is only $0.91$. This would trigger a second liquidation immediately, taking another chunk of your collateral and another penalty fee.
 
 #### Summary
 You lose the portion of collateral needed to pay the debt PLUS a $5-15\%$ penalty fee. You only lose "everything" if 
