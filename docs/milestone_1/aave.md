@@ -7,7 +7,9 @@ debt-to-collateral ratio allowed before the protocol triggers a liquidation to p
 ### The Health Factor ($HF$) Formula
 
 Aave monitors the safety of a position by calculating a Health Factor. For a single collateral asset, the formula is:
+
 $$HF = \frac{V_{c} \times LT}{V_{d}}$$
+
 Where:
 - $V_{c}$ is the Value of Collateral
 - $LT$ is the Liquidation Threshold
