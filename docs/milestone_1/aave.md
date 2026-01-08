@@ -19,6 +19,17 @@ Where:
 If $HF \geq 1$: The position is healthy.
 If $HF < 1$: The position is eligible for liquidation.
 
+### Liquidation Threshold 
+
+A Liquidation Threshold of 0.70 (70%) means the protocol considers the loan unsafe when the borrowed amount reaches more than 70% of the collateral's current market value. 
+In other words:
+
+The debt can grow (or collateral shrink) until Debt = 70% of Collateral → HF approaches 1.
+Once Debt > 70% of Collateral → HF < 1 → Liquidation eligible.
+
+This provides a safety buffer beyond the initial borrowing limit.
+
+[read more on how Aave assigns LT value](./aave.governance.md)
 ### Liquidation Threshold vs. Loan-to-Value (LTV)
 It is important to distinguish between the initial borrowing limit and the liquidation limit:
 #### **LTV** 
