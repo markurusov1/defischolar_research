@@ -125,11 +125,15 @@ This simulation shows exactly what happens to your $\$6,000$ Uniswap LP position
 - **Before:** $\frac{\$4,980 \times 0.70}{\$3,500} = 0.99$
 - **After:** $\frac{\$3,055 \times 0.70}{\$1,750} = 1.22$
 
-The protocol intentionally takes enough collateral to make your remaining position "safe" again, preventing a continuous loop of liquidations. 
-5. Why You Don't Lose "Everything" Unless the price of your collateral crashes to zero instantly, you are left with 
-the remaining collateral ($\$3,055$ in the $17\%$ drop scenario). You still own that asset; it is just a smaller amount than you started with.
-6. The Danger of "Cascading" LiquidationIf the price drops $30\%$ or more, even after the first liquidation, your $HF$ 
-   might stay below $1.0$. In the table above, at a $30\%$ drop, the New $HF$ after the first liquidation is only $0.91$. This would trigger a second liquidation immediately, taking another chunk of your collateral and another penalty fee.
+The protocol intentionally takes enough collateral to make your remaining position "safe" again, preventing a 
+continuous loop of liquidations.  
+5. Why You Don't Lose "Everything" – unless the price of your collateral crashes to zero instantly, you are left with 
+the remaining collateral ($\$3,055$ in the $17\%$ drop scenario). You still own that asset; it is just a smaller 
+   amount than you started with. 
+6. The Danger of "Cascading" Liquidation – If the price drops $30\%$ or more, even after the first liquidation, your 
+   $HF$ might stay below $1.0$. In the table above, at a $30\%$ drop, the New $HF$ after the first liquidation is 
+   only $0.91$. This would trigger a second liquidation immediately, taking another chunk of your collateral and another 
+   penalty fee. 
 
 #### Summary
 You lose the portion of collateral needed to pay the debt PLUS a $5-15\%$ penalty fee. You only lose "everything" if 
