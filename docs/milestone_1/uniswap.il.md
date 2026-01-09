@@ -31,7 +31,10 @@ If you were to manually call the smart contract and provide a ratio different fr
 If you are the **very first person** to provide liquidity to a brand-new pool (creating the pool), you can deposit the two tokens in **any proportion you choose**.
 
 * This initial deposit **sets the starting price** for that pool.
-* If you set a price that is different from the global market rate (e.g., setting ETH at $10,000 when it's actually $3,000), arbitrage bots will immediately trade against your pool to bring it to $3,000, resulting in a significant loss of your initial funds
+* If you set a price that is different from the global market rate (e.g., setting ETH at \$10,000 when it's actually 
+  \$3,000), arbitrage bots will immediately trade against your pool to bring it to $3,000, resulting in a significant 
+  loss of your initial funds
+
 ## Common Asset Pairs in Uniswap V3
 
 When providing liquidity in Uniswap V3, the choice of asset pairs significantly influences the behavior of your liquidity position, particularly regarding impermanent loss (IL). While many liquidity providers (LPs) commonly use a "stablecoin + risky asset" pairing (e.g., USDC/ETH), it's essential to understand that the
@@ -79,15 +82,16 @@ The formula is expressed in terms of the price ratio ($r$), which is the ratio o
 
 #### The Standard V2 Formula
 
-$$IL = \frac{2\sqrt{r}}{1+r} - 1$$
+$IL = \frac{2\sqrt{r}}{1+r} - 1$
+
 Where:
-$r$: The price change ratio (e.g., if the price doubles, $r = 2$; if it drops by half, $r = 0.5$).
-$IL$: The loss as a percentage (a result of $-0.05$ means a 5% loss compared to just holding the assets).
+- $r$: The price change ratio (e.g., if the price doubles, $r = 2$; if it drops by half, $r = 0.5$)
+- $IL$: The loss as a percentage (a result of $-0.05$ means a 5% loss compared to just holding the assets)
 
 Why does it look like this?
 This formula is derived from the difference between the Value of the LP Position and the Value of Holding (HODL):
 
-- Value in Pool ($V_{pool}$): Because of the $x \cdot y = k$ formula, your assets rebalance as price changes. The 
+- Value in Pool ($V_{pool}$): Because of the $x \cdot y = k$ formula, your assets rebalance as the price changes. The 
 value of your position at a new price ratio $r$ is:
 $V_{pool} = V_{initial} \cdot \sqrt{r}$
 
@@ -96,7 +100,7 @@ $V_{hodl} = V_{initial} \cdot \frac{1+r}{2}$
 
 Dividing the two gives you the performance ratio:
 
-$$\frac{V_{pool}}{V_{hodl}} = \frac{2\sqrt{r}}{1+r}$$
+$\frac{V_{pool}}{V_{hodl}} = \frac{2\sqrt{r}}{1+r}$
 #### Example Visuals
 
 | Price Change (r) | Impermanent Loss (V2) |
@@ -122,18 +126,22 @@ This concentration acts like leverage. It earns you more fees when the price is 
 
 ### The Core Formula
    The formula for Impermanent Loss in Uniswap V3 depends on whether the current price ($P$) is inside or outside your chosen range $[P_a, P_b]$.
-   The Relative Loss Equation
+
+#### The Relative Loss Equation
    If the price stays within the range $[P_a, P_b]$, the value of your liquidity position ($V_{pool}$) compared to just holding the original assets ($V_{hodl}$) is calculated by:
 
-$$IL = \frac{V_{pool}}{V_{hodl}} - 1$$
-To find $V_{pool}$, Uniswap V3 uses "virtual reserves" which treat your concentrated position as a slice of a much larger V2-style curve. The value of your position at price $P$ is:
+$IL = \frac{V_{pool}}{V_{hodl}} - 1$
 
-$$V_{pool}(P) = L \cdot (2\sqrt{P} - \sqrt{P_a} - \frac{P}{\sqrt{P_b}})$$
+To find $V_{pool}$, Uniswap V3 uses "virtual reserves" which treat your concentrated position as a slice of a much larger V2-style curve. 
+The value of your position at price $P$ is:
+
+$V_{pool}(P) = L \cdot (2\sqrt{P} - \sqrt{P_a} - \frac{P}{\sqrt{P_b}})$
+
 Where:
-$L$ = Liquidity (the "k" of your specific range).
-$P$ = Current price of the asset.
-$P_a$ = Lower bound of your range.
-$P_b$ = Upper bound of your range.
+- $L$ = Liquidity (the "k" of your specific range)
+- $P$ = Current price of the asset
+- $P_a$ = Lower bound of your range
+- $P_b$ = Upper bound of your range.
 
 ### Why V3 IL is "Amplified"
    In Uniswap V2, a $2\times$ price move always results in exactly $5.7\%$ IL. In Uniswap V3, the narrower your range, the higher your "Effective Leverage."
@@ -151,7 +159,8 @@ At these points, your IL becomes "locked" in terms of asset composition until th
    Uniswap V3 tracks these ranges using Ticks. Each tick represents a $0.01\%$ (1 basis point) price change.
    The price at any tick $i$ is defined as:
 
-$$P(i) = 1.0001^i$$
+$P(i) = 1.0001^i$
+
 When you set a range, you are essentially choosing two ticks. The closer those ticks are, the higher your $L$ (Liquidity) for a given dollar amount, and the steeper the IL curve becomes if the price deviates from your entry.
 #### Summary Comparison Table
 
