@@ -1,4 +1,5 @@
-Yes, the **Liquidation Threshold** (along with other risk parameters like LTV and liquidation bonus) is assigned and managed by **Aave Governance**.
+The **Liquidation Threshold** (along with other risk parameters like LTV and liquidation bonus) is assigned and 
+managed by **Aave Governance**.
 
 ### How It Works
 Aave is a decentralized protocol governed by the **Aave DAO** (Decentralized Autonomous Organization), where holders 
