@@ -172,3 +172,21 @@ When you set a range, you are essentially choosing two ticks. The closer those t
 | Risk | Lower, but lower fees | Higher IL risk, but much higher fee potential |
 
 
+## Liquidity Provision in Uniswap V3: Who Chooses the Ranges?
+
+In Uniswap V3, **liquidity providers (LPs) individually choose the price ranges for their liquidity positions**. The pool itself does **not** pre-define any specific ranges—the protocol is designed to be flexible and permissionless, allowing each LP to customize their strategy based on their risk tolerance, market outlook, and fee-earning goals. This is the core innovation of V3's "concentrated liquidity" model, which contrasts with Uniswap V2 (and full-range V3 positions), where liquidity is spread uniformly across all possible prices.
+
+### Key Details on How It Works
+- **LP-Driven Customization**:
+    - When an LP adds liquidity to a V3 pool (e.g., ETH/USDC), they specify a **price range** (defined by "ticks" in the protocol) where their capital will be active. For example, an LP bullish on ETH might choose a narrow range like $3,000–$3,500 USDC per ETH to concentrate capital for higher fees from trades in that band.
+    - This range can be **any valid interval** within the pool's price bounds (from near 0 to very high values), as long as it aligns with the pool's tick spacing (a small granularity limit based on the fee tier, e.g., 10, 60, or 200 ticks apart for 0.05%, 0.30%, or 1% fees).
+    - LPs can create multiple positions with different ranges in the same pool to diversify (e.g., one narrow for high fees, one wide for stability).
+
+- **Pool's Role**:
+    - The pool only enforces the **overall mechanics**: It aggregates all LPs' liquidity across their chosen ranges to facilitate trades via the constant product formula (adjusted for concentration). There's no central "pre-defined" range; the pool dynamically uses whatever liquidity is provided in the current price area.
+    - If the current market price moves **in-range** for an LP's position, their liquidity earns fees proportionally. **Out-of-range**, it stops earning fees and behaves like holding one asset (increasing impermanent loss risk).
+
+- **Trade-Offs for LPs**:
+    - **Narrow ranges**: Higher capital efficiency (up to 4,000x vs. V2) and fees, but higher risk of going out-of-range and missing trades.
+    - **Wide ranges**: More stable (approximates V2), but lower efficiency.
+    - This choice is strategic: Risk-averse LPs opt for broader ranges, while active ones (e.g., market makers) use narrow ones and rebalance frequently.
