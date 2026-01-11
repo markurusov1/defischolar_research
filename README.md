@@ -11,7 +11,6 @@ The project compares fixed Loan-to-Value (LTV) liquidation models in DeFi lendin
 - Analyze real-world DeFi liquidation events (e.g., FTX 2022, market dips in 2025).
 - Simulate fixed LTV vs. hypothetical risk-based margins using historical data.
 - Propose improvements: dynamic, IL-aware LTV for safer leverage (5–10x) and higher TVL/fees in Uniswap.
-- Produce a 10–15 page research paper with charts, aimed at competitions like Regeneron STS, JSHS, or Davidson Fellows.
 
 ### Milestones
 1. Foundations & Literature Review
