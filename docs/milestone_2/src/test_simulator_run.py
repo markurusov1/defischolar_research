@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Quick test to verify simulator works."""
+"""Quick test to verify the simulator works."""
 
 print("Starting test...")
 

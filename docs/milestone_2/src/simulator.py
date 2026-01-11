@@ -1,4 +1,6 @@
+import os
 from position_loader import create_positions
+from run_manager import setup_run_directories, get_timeseries_csv_path
 from typing import Dict, Tuple
 
 # -------------------  Define crashes to analyze -------------------
@@ -33,7 +35,7 @@ def prepare_aave_simulator():
 
 
 def initialize_loans(lender, positions, price_df) -> Tuple[Dict[str, float], Dict[str, object]]:
-    """Compute initial loan amounts for each position based on its initial price.
+    """Compute initial loan amounts for each position based on its open price.
 
     Returns:
         position_loans: dict mapping position id -> loan amount
@@ -42,13 +44,11 @@ def initialize_loans(lender, positions, price_df) -> Tuple[Dict[str, float], Dic
     position_loans = {}
     position_objs = {}
 
+    # Use the first date's open_price as the initial price
+    initial_price = float(price_df.iloc[0]['open_price'])
+
     for i, pos in enumerate(positions):
         pos_id = f"id#{i}"
-        # Compute the initial position value using the position's initial price if available,
-        # otherwise fall back to data_loader first price
-        initial_price = getattr(pos, 'initial_price', None)
-        if initial_price is None:
-            initial_price = float(price_df.iloc[0]['price'])
         pos_value = pos.compute_position_value(initial_price)
         loan_amount = lender.borrow(pos_value)
         position_loans[pos_id] = loan_amount
@@ -57,14 +57,23 @@ def initialize_loans(lender, positions, price_df) -> Tuple[Dict[str, float], Dic
     return position_loans, position_objs
 
 
-def run_full_simulation(sim, position_loans, position_objs, price_df) -> Dict:
+def run_full_simulation(sim, position_loans, position_objs, price_df, output_dir: str = 'output') -> Dict:
     """Run simulation over all dates in the price dataframe.
+
+    Each trading day:
+    1. Initialize positions at open_price
+    2. Run liquidation checks at close_price
+    3. Generate detailed CSV file for the day with position-level data
+    4. Tear down all positions and loans at end of day
 
     Returns a dict with:
         - timeseries: list of dicts, one per date with:
-            {date, price, total_liquidations, unique_liquidated, avg_health_factor}
+            {date, open_price, close_price, total_liquidations, unique_liquidated, avg_health_factor}
         - summary: dict with aggregate stats over all dates
     """
+    import os
+    import csv
+
     timeseries = []
 
     total_liquidations_all = 0
@@ -73,21 +82,53 @@ def run_full_simulation(sim, position_loans, position_objs, price_df) -> Dict:
     hf_count_all = 0
     positions_ever_liquidated = set()
 
-    for _, row in price_df.iterrows():
-        date = row['date']
-        price = float(row['price'])
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
 
+    for idx, (_, row) in enumerate(price_df.iterrows()):
+        date = row['date']
+        open_price = float(row['open_price'])
+        close_price = float(row['close_price'])
+
+        # --- OPEN: Initialize positions at opening price ---
+        daily_position_loans = {}
+        daily_position_data = {}
+
+        for pid, pos in position_objs.items():
+            pos_value_open = pos.compute_position_value(open_price)
+            loan_amount = sim.borrow(pos_value_open)
+            daily_position_loans[pid] = loan_amount
+
+            # Store seeding information
+            daily_position_data[pid] = {
+                'position_id': pid,
+                'seed_price': open_price,
+                'position_value_at_seed': pos_value_open,
+                'loan_amount': loan_amount,
+            }
+
+        # --- DURING DAY: Run liquidation checks at closing price ---
         total_liquidations_day = 0
         liquidated_today = set()
         hf_sum_day = 0.0
         hf_count_day = 0
 
-        for pid, pos in position_objs.items():
-            pos_value = pos.compute_position_value(price)
-            loan = position_loans[pid]
+        daily_csv_rows = []
 
-            decision = sim.decide_liquidation(pos_value, loan)
+        for pid, pos in position_objs.items():
+            pos_value_open = pos.compute_position_value(open_price)
+            pos_value_close = pos.compute_position_value(close_price)
+            loan = daily_position_loans[pid]
+
+            # Calculate impermanent loss
+            hold_value = pos.compute_hold_value(close_price)
+            il = pos.compute_impermanent_loss(close_price)
+
+            decision = sim.decide_liquidation(pos_value_close, loan)
             hf = decision.get('health_factor', float('inf'))
+            should_liquidate = decision.get('should_liquidate', False)
+            repay_amount = decision.get('repay_amount', 0.0)
+            collateral_to_take = decision.get('collateral_to_take', 0.0)
 
             if hf != float('inf'):
                 hf_sum_day += hf
@@ -95,23 +136,68 @@ def run_full_simulation(sim, position_loans, position_objs, price_df) -> Dict:
                 hf_sum_all += hf
                 hf_count_all += 1
 
-            if decision.get('should_liquidate'):
+            if should_liquidate:
                 total_liquidations_day += 1
                 total_liquidations_all += 1
                 liquidated_today.add(pid)
                 positions_ever_liquidated.add(pid)
 
+            # Build row for daily CSV
+            csv_row = {
+                'position_id': pid,
+                'seed_price': f"{open_price:.4f}",
+                'position_value_at_seed': f"{pos_value_open:.2f}",
+                'loan_amount': f"{loan:.2f}",
+                'close_price': f"{close_price:.4f}",
+                'position_value_at_close': f"{pos_value_close:.2f}",
+                'hold_value': f"{hold_value:.2f}",
+                'impermanent_loss': f"{il:.6f}",
+                'impermanent_loss_pct': f"{il * 100:.2f}",
+                'health_factor': f"{hf:.6f}" if hf != float('inf') else 'inf',
+                'should_liquidate': 'Yes' if should_liquidate else 'No',
+                'repay_amount': f"{repay_amount:.2f}",
+                'collateral_to_take': f"{collateral_to_take:.2f}",
+            }
+            daily_csv_rows.append(csv_row)
+
+        # --- EXPORT: Generate daily CSV file ---
+        date_str = date.strftime('%Y%m%d')
+        csv_filename = os.path.join(output_dir, f"trading_day_{date_str}.csv")
+
+        try:
+            with open(csv_filename, 'w', newline='') as csvfile:
+                fieldnames = [
+                    'position_id', 'seed_price', 'position_value_at_seed', 'loan_amount',
+                    'close_price', 'position_value_at_close', 'hold_value',
+                    'impermanent_loss', 'impermanent_loss_pct',
+                    'health_factor', 'should_liquidate', 'repay_amount', 'collateral_to_take'
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(daily_csv_rows)
+        except Exception as e:
+            print(f"Error writing daily CSV for {date_str}: {e}")
+
+        # --- CLOSE: Tear down all positions and loans ---
+        daily_position_loans.clear()
+        daily_position_data.clear()
+
         avg_hf_day = (hf_sum_day / hf_count_day) if hf_count_day > 0 else float('inf')
 
         timeseries.append({
             'date': date,
-            'price': price,
+            'open_price': open_price,
+            'close_price': close_price,
             'total_liquidations': total_liquidations_day,
             'unique_liquidated': len(liquidated_today),
             'avg_health_factor': avg_hf_day,
         })
 
         total_dates += 1
+
+        # Print progress every 100 days
+        if (idx + 1) % 100 == 0:
+            print(f"Processed {idx + 1} days...")
 
     avg_hf_all = (hf_sum_all / hf_count_all) if hf_count_all > 0 else float('inf')
 
@@ -121,6 +207,7 @@ def run_full_simulation(sim, position_loans, position_objs, price_df) -> Dict:
         'total_liquidations_all': total_liquidations_all,
         'unique_positions_ever_liquidated': len(positions_ever_liquidated),
         'avg_health_factor_all': avg_hf_all,
+        'output_dir': output_dir,
     }
 
     return {
@@ -129,11 +216,19 @@ def run_full_simulation(sim, position_loans, position_objs, price_df) -> Dict:
     }
 
 
-def run_simulation(n_positions: int = 500):
+def run_simulation(n_positions: int = 500, output_dir: str = 'output', run_id: str = None):
     """High-level entrypoint: create positions, load prices, and run full historical simulation.
 
-    Returns a dict with timeseries and summary stats.
+    Args:
+        n_positions: Number of positions to create
+        output_dir: Base output directory
+        run_id: Run ID for organizing outputs (if None, generates one)
+
+    Returns a dict with timeseries and summary stats, and run_id.
     """
+    # Set up run directories
+    run_id, daily_records_dir, charts_dir, run_base_dir = setup_run_directories(output_dir, run_id)
+
     #Open all positions
     positions = prepare_positions(n_positions=n_positions)
 
@@ -147,9 +242,115 @@ def run_simulation(n_positions: int = 500):
     position_loans, position_objs = initialize_loans(lender, positions, price_df)
 
     #Run simulation over all dates and all positions
-    result = run_full_simulation(lender, position_loans, position_objs, price_df)
+    result = run_full_simulation(lender, position_loans, position_objs, price_df, output_dir=daily_records_dir)
+
+    # Add run metadata to result
+    result['run_id'] = run_id
+    result['daily_records_dir'] = daily_records_dir
+    result['charts_dir'] = charts_dir
+    result['run_base_dir'] = run_base_dir
 
     return result
+
+
+def generate_price_liquidation_chart(timeseries, output_file: str = 'price_liquidation_chart.png'):
+    """Generate a line chart showing the correlation between closing price and liquidations over time.
+
+    Args:
+        timeseries: List of daily records from run_full_simulation
+        output_file: Path to save the chart image
+    """
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+    except ImportError:
+        print("Warning: matplotlib not installed. Skipping chart generation.")
+        print("Install with: pip install matplotlib")
+        return
+
+    # Extract data from timeseries
+    dates = [row['date'] for row in timeseries]
+    prices = [row['close_price'] for row in timeseries]
+    liquidations = [row['total_liquidations'] for row in timeseries]
+
+    # Create figure with two Y axes (dual axis plot)
+    fig, ax1 = plt.subplots(figsize=(14, 7))
+
+    # Plot price on left Y axis
+    color = 'tab:blue'
+    ax1.set_xlabel('Date')
+    ax1.set_ylabel('ETH Price (USDC)', color=color)
+    line1 = ax1.plot(dates, prices, color=color, linewidth=2, label='ETH Close Price')
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.grid(True, alpha=0.3)
+
+    # Plot liquidations on right Y axis
+    ax2 = ax1.twinx()
+    color = 'tab:red'
+    ax2.set_ylabel('Number of Liquidations', color=color)
+    line2 = ax2.plot(dates, liquidations, color=color, linewidth=2, label='Liquidations', linestyle='--')
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    # Format X axis to show dates nicely
+    ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    fig.autofmt_xdate(rotation=45, ha='right')
+
+    # Add title and legend
+    fig.suptitle('ETH Price vs. Liquidation Events Over Time', fontsize=16, fontweight='bold')
+    lines = line1 + line2
+    labels = [str(l.get_label()) for l in lines]
+    ax1.legend(lines, labels, loc='upper left')
+
+    # Adjust layout to prevent label cutoff
+    fig.tight_layout()
+
+    # Save and display
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Chart saved to: {output_file}")
+    plt.close()
+
+
+def export_timeseries_to_csv(timeseries, output_file: str = 'liquidation_timeseries.csv'):
+    """Export timeseries data to a CSV file.
+
+    Args:
+        timeseries: List of daily records from run_full_simulation
+        output_file: Path to save the CSV file
+    """
+    try:
+        import csv
+    except ImportError:
+        print("Warning: csv module not available")
+        return
+
+    try:
+        with open(output_file, 'w', newline='') as csvfile:
+            fieldnames = ['date', 'open_price', 'close_price', 'price_change', 'number_of_liquidations', 'average_health_factor']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            # Write header
+            writer.writeheader()
+
+            # Write data rows
+            for row in timeseries:
+                # Calculate price change percentage
+                open_price = row['open_price']
+                close_price = row['close_price']
+                price_change = ((close_price - open_price) / open_price * 100) if open_price != 0 else 0.0
+
+                writer.writerow({
+                    'date': row['date'],
+                    'open_price': f"{row['open_price']:.2f}",
+                    'close_price': f"{row['close_price']:.2f}",
+                    'price_change': f"{price_change:.2f}",
+                    'number_of_liquidations': row['total_liquidations'],
+                    'average_health_factor': f"{row['avg_health_factor']:.6f}" if row['avg_health_factor'] != float('inf') else 'inf',
+                })
+
+        print(f"CSV file saved to: {output_file}")
+    except Exception as e:
+        print(f"Error writing CSV file: {e}")
 
 
 if __name__ == "__main__":
@@ -157,40 +358,36 @@ if __name__ == "__main__":
 
     summary = result['summary']
     timeseries = result['timeseries']
+    run_id = result['run_id']
+    daily_records_dir = result['daily_records_dir']
+    charts_dir = result['charts_dir']
+    run_base_dir = result['run_base_dir']
 
-    print("\n===== SIMULATION SUMMARY =====")
+    print(f"\n===== RUN ID: {run_id} =====")
+    print("===== SIMULATION SUMMARY =====")
     print(f"Total dates simulated: {summary['total_dates']}")
     print(f"Total positions: {summary['total_positions']}")
     print(f"Total liquidation events (all dates): {summary['total_liquidations_all']}")
     print(f"Unique positions ever liquidated: {summary['unique_positions_ever_liquidated']}")
     print(f"Average health factor (all): {summary['avg_health_factor_all']:.4f}")
 
-    print("\n===== FIRST 10 DATES =====")
-    for i, row in enumerate(timeseries[:10]):
-        print(f"{i}: {row['date']} | price={row['price']:.2f} | liq={row['total_liquidations']} | unique_liq={row['unique_liquidated']} | hf={row['avg_health_factor']:.4f}")
+    # Generate and save the price-liquidation chart
+    timeseries_csv_path = get_timeseries_csv_path(run_base_dir)
+    price_liq_chart_path = os.path.join(charts_dir, 'price_liquidation_chart.png')
+    generate_price_liquidation_chart(timeseries, output_file=price_liq_chart_path)
 
-    print("\n===== LAST 10 DATES =====")
-    for i, row in enumerate(timeseries[-10:]):
-        print(f"{i}: {row['date']} | price={row['price']:.2f} | liq={row['total_liquidations']} | unique_liq={row['unique_liquidated']} | hf={row['avg_health_factor']:.4f}")
+    # Export timeseries to CSV
+    export_timeseries_to_csv(timeseries, output_file=timeseries_csv_path)
 
-    # Optional: print dates with highest liquidations
-    top_liq_days = sorted(timeseries, key=lambda x: x['total_liquidations'], reverse=True)[:5]
-    print("\n===== TOP 5 LIQUIDATION DAYS =====")
-    for row in top_liq_days:
-        print(f"{row['date']} | price={row['price']:.2f} | liq={row['total_liquidations']} | unique_liq={row['unique_liquidated']} | hf={row['avg_health_factor']:.4f}")
+    # Call chart generation
+    print(f"\nGenerating analysis charts in {charts_dir}...")
+    from docs.milestone_2.src.generate_analysis_charts import main as generate_charts_main
+    generate_charts_main(output_dir=daily_records_dir, output_charts_dir=charts_dir)
+
+    print(f"\n===== SIMULATION COMPLETE =====")
+    print(f"Run ID: {run_id}")
+    print(f"Daily records: {daily_records_dir}")
+    print(f"Charts: {charts_dir}")
+    print(f"Timeseries CSV: {timeseries_csv_path}")
 
 
-# -------------------  Notes -------------------
-# This is a minimal, import-friendly simulator; it:
-# - creates positions and loans once (loan is based on initial position value)
-# - iterates over ALL historical prices in the price dataframe
-# - recomputes position value at each price and calls the AaveSimulator to decide
-#   whether that position would be liquidatable at the current value/loan
-# - accumulates timeseries of liquidation events and health factors per date
-# - produces summary stats: total liquidations, unique positions liquidated, avg HF
-#
-# Next steps / improvements:
-# - update loan amounts after partial liquidations
-# - include interest accrual over time
-# - parallelize loops for speed
-# - persist detailed per-position time series to CSV or a DB
