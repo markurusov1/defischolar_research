@@ -8,15 +8,17 @@ class UniswapV3Position:
     then computing the position's value at any given price (e.g., for use as collateral in Aave).
     """
 
-    def __init__(self, initial_eth_max: float, initial_usdc_max: float, range_width: float):
+    def __init__(self, id:str, initial_eth_max: float, initial_usdc_max: float, range_width: float):
         """
         Initialize the position.
 
         Args:
+            Position ID
             initial_eth_max: Maximum ETH to deposit.
             initial_usdc_max: Maximum USDC to deposit.
             range_width: Fractional width for the price range (e.g., 0.1 for ±10%).
         """
+        positionID=id
         if range_width <= 0 or range_width >= 1:
             raise ValueError("Range width should be between 0 and 1 (exclusive).")
 
@@ -37,11 +39,12 @@ class UniswapV3Position:
         delta1 = self.sqrt_initial - self.sqrt_lower
         L0 = initial_eth_max / delta0 if delta0 > 0 else float('inf')
         L1 = initial_usdc_max / delta1 if delta1 > 0 else float('inf')
-        self.L = min(L0, L1)
+        self.liquidity = min(L0, L1)
 
         # Actual deposited amounts at initial price
         self.actual_eth, self.actual_usdc = self.get_amounts(self.initial_price)
 
+        print(f"\nPosition {positionID}:")
         print(f"Initial price (USDC per ETH): {self.initial_price:.4f}")
         print(f"Lower bound of range: {self.lower_price:.4f}")
         print(f"Upper bound of range: {self.upper_price:.4f}")
@@ -60,15 +63,15 @@ class UniswapV3Position:
             (amount_eth, amount_usdc)
         """
         if current_price <= self.lower_price:
-            amount_eth = self.L * (1 / self.sqrt_lower - 1 / self.sqrt_upper)
+            amount_eth = self.liquidity * (1 / self.sqrt_lower - 1 / self.sqrt_upper)
             amount_usdc = 0
         elif current_price >= self.upper_price:
             amount_eth = 0
-            amount_usdc = self.L * (self.sqrt_upper - self.sqrt_lower)
+            amount_usdc = self.liquidity * (self.sqrt_upper - self.sqrt_lower)
         else:
             sqrt_current = math.sqrt(current_price)
-            amount_eth = self.L * (1 / sqrt_current - 1 / self.sqrt_upper)
-            amount_usdc = self.L * (sqrt_current - self.sqrt_lower)
+            amount_eth = self.liquidity * (1 / sqrt_current - 1 / self.sqrt_upper)
+            amount_usdc = self.liquidity * (sqrt_current - self.sqrt_lower)
         return amount_eth, amount_usdc
 
     def compute_position_value(self, current_price: float) -> float:
