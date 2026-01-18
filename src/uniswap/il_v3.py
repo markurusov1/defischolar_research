@@ -44,14 +44,14 @@ class UniswapV3Position:
         # Actual deposited amounts at initial price
         self.actual_eth, self.actual_usdc = self.get_amounts(self.initial_price)
 
-        print(f"\nPosition {self.position_id}:")
+        """ print(f"\nPosition {self.position_id}:")
         print(f"Initial price (USDC per ETH): {self.initial_price:.4f}")
         print(f"Lower bound of range: {self.lower_price:.4f}")
         print(f"Upper bound of range: {self.upper_price:.4f}")
         print(f"Actual ETH deposited: {self.actual_eth:.2f} (excess returned: {initial_eth_max - self.actual_eth:.2f})")
         print(f"Actual USDC deposited: {self.actual_usdc:.2f} (excess returned: {initial_usdc_max - self.actual_usdc:.2f})")
         print(f"Initial LP position value: {self.compute_position_value(self.initial_price):.2f} USDC")
-
+        """
     def get_amounts(self, current_price: float) -> tuple[float, float]:
         """
         Calculate the amounts of ETH and USDC in the position at a given current price.

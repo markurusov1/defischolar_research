@@ -29,7 +29,7 @@ Once Debt > 70% of Collateral → HF < 1 → Liquidation eligible.
 
 This provides a safety buffer beyond the initial borrowing limit.
 
-[read more on how Aave assigns LT value](./aave.governance.md)
+[read more on how Aave assigns LT value](aave.governance.md)
 ### Liquidation Threshold vs. Loan-to-Value (LTV)
 It is important to distinguish between the initial borrowing limit and the liquidation limit:
 #### **LTV** 

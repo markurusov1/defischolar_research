@@ -14,7 +14,7 @@ from typing import List, Dict, Tuple
 import statistics
 
 
-def load_daily_files(output_dir: str = 'output') -> Dict[str, List[Dict]]:
+def load_daily_files(output_dir: str = '../output') -> Dict[str, List[Dict]]:
     """Load all daily trading CSV files from the output directory.
 
     Args:

@@ -1,12 +1,13 @@
 # hybrid_stress_sim.py
-# Implements TradFi-style dynamic margin / stress-tested liquidation thresholds
-# in a DeFi-style daily simulation loop over historical ETH prices
+# Implements TradFi-style dynamic margin via stress-adjusted loan amount
+# Reduces borrow on risky positions instead of raising liquidation threshold
+# Added timestamp to output directory
 
 import os
 import pandas as pd
 import numpy as np
 from typing import List, Dict
-import docs.milestone_2.src.data_loader as data_loader
+from datetime import datetime
 
 # ────────────────────────────────────────────────
 # Import your existing modules
@@ -22,6 +23,7 @@ from aave.aave_original import AaveSimulator
 def load_historical_data() -> pd.DataFrame:
     """Load ETH price data (assumes data_loader.py exposes df)"""
     try:
+        import data_loader
         df = data_loader.df.copy()
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date').reset_index(drop=True)
@@ -36,10 +38,10 @@ def prepare_positions_pool(n_positions: int = N_POSITIONS) -> List[UniswapV3Posi
 
 
 # TradFi stress test parameters
-SHOCK_LEVELS_PCT = np.array([-15, -12, -9, -6, -3, 0, 3, 6, 9, 12, 15])
-SAFETY_BUFFER = 0.10          # extra cushion on worst-case health factor
-LIQUIDATION_THRESHOLD = 1.0   # health factor < 1.0 → liquidation eligible
-LTV_MAX = 0.65                # same as AaveSimulator default
+SHOCK_LEVELS_PCT = np.array([-15,-12, -9,-6,-3, 0, 3, 6, 9, 12, 15])
+SAFETY_BUFFER = 0.1          # cushion on worst-case HF
+LIQUIDATION_THRESHOLD = 1.0
+LTV_MAX = 0.65                # max possible LTV; stress test reduces effective LTV
 
 
 def project_health_under_shock(
@@ -49,69 +51,52 @@ def project_health_under_shock(
         loan_amount: float,
         aave: AaveSimulator
 ) -> float:
-    """
-    Project position value + health factor under one hypothetical price shock.
-    Includes impermanent loss effect implicitly via recomputed position value.
-    """
     shocked_price = initial_price * (1 + shock_pct / 100)
     if shocked_price <= 0:
         return 0.0
-
-    # Recompute position value at shocked price (accounts for range / IL)
     shocked_value = pos.compute_position_value(shocked_price)
-
-    # Health factor under this scenario
     hf = aave.calculate_health_factor(shocked_value, loan_amount)
     return hf
 
 
-def compute_dynamic_threshold(
+def compute_worst_projected_hf(
         pos: UniswapV3Position,
         open_price: float,
         loan_amount: float,
         aave: AaveSimulator
 ) -> float:
-    """
-    TradFi-style: find the WORST projected health factor across all shocks,
-    then add a buffer → this becomes the liquidation trigger threshold for the day.
-    """
     if loan_amount <= 0:
         return float('inf')
-
-    projected_hfs = []
-    for shock in SHOCK_LEVELS_PCT:
-        hf_shock = project_health_under_shock(pos, open_price, shock, loan_amount, aave)
-        projected_hfs.append(hf_shock)
-
-    worst_hf = min(projected_hfs) if projected_hfs else float('inf')
-    dynamic_threshold = worst_hf + SAFETY_BUFFER
-
-    # Never let threshold go below liquidation point (safety)
-    return max(dynamic_threshold, LIQUIDATION_THRESHOLD)
+    projected_hfs = [
+        project_health_under_shock(pos, open_price, shock, loan_amount, aave)
+        for shock in SHOCK_LEVELS_PCT
+    ]
+    return min(projected_hfs) if projected_hfs else float('inf')
 
 
 # ────────────────────────────────────────────────
-# Step 2 + 3: Main Simulation Loop
+# Main Simulation
 # ────────────────────────────────────────────────
 
 def run_hybrid_stress_simulation(
-        output_dir: str = "output_hybrid",
+        output_dir_base: str = "../output/tradefi_adjusted",
         n_positions: int = N_POSITIONS
 ) -> Dict:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    output_dir = f"{output_dir_base}_{timestamp}"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load data & prepare positions (Step 1)
     price_df = load_historical_data()
     positions = prepare_positions_pool(n_positions)
-    aave = AaveSimulator()  # fresh simulator instance
+    aave = AaveSimulator()
 
     timeseries = []
     total_liquidations_all = 0
     positions_ever_liquidated = set()
 
     print(f"Simulating {len(price_df)} days with {len(positions)} positions...")
+    print(f"Output directory: {output_dir}")
 
-    # Outer loop: each historical date (Step 2)
     for idx, row in price_df.iterrows():
         date = row['date']
         open_price = float(row['open_price'])
@@ -122,37 +107,37 @@ def run_hybrid_stress_simulation(
         liquidated_today = set()
         hf_values = []
 
-        # Inner loop: each position (Step 3)
         for pos in positions:
-            # ── Phase A: Value & borrow at OPEN price ──
             pos_value_open = pos.compute_position_value(open_price)
             if pos_value_open <= 0:
                 continue
 
-            loan_amount = aave.borrow(pos_value_open)  # LTV_MAX * value
+            provisional_loan = aave.borrow(pos_value_open)
 
-            # ── Phase B: TradFi stress test → set DYNAMIC threshold for this day ──
-            dynamic_threshold = compute_dynamic_threshold(
-                pos, open_price, loan_amount, aave
-            )
+            # Stress test with provisional loan to estimate risk
+            worst_hf = compute_worst_projected_hf(pos, open_price, provisional_loan, aave)
 
-            # ── Phase C: Realized outcome at CLOSE price ──
+            # Adjust loan amount downward for stressed positions
+            loan_amount = provisional_loan
+            if worst_hf < float('inf') and worst_hf > 0:
+                stress_factor = 1.0 / (worst_hf + SAFETY_BUFFER)
+                safe_loan = pos_value_open * LTV_MAX / stress_factor
+                loan_amount = min(provisional_loan, safe_loan)
+
             pos_value_close = pos.compute_position_value(close_price)
             actual_hf = aave.calculate_health_factor(pos_value_close, loan_amount)
 
-            # Record health factor (for stats)
             if actual_hf != float('inf'):
                 hf_values.append(actual_hf)
 
-            # ── Decision: Liquidate if actual HF < dynamic threshold ──
-            should_liquidate = actual_hf < dynamic_threshold
+            # Liquidation check (now benefits from reduced loan_amount)
+            should_liquidate = actual_hf < LIQUIDATION_THRESHOLD
 
             if should_liquidate:
                 daily_liquidations += 1
-                liquidated_today.add(pos.position_id)   # assuming position has .position_id
+                liquidated_today.add(pos.position_id)
                 positions_ever_liquidated.add(pos.position_id)
 
-        # ── Daily summary ──
         avg_hf = np.mean(hf_values) if hf_values else float('inf')
         total_liquidations_all += daily_liquidations
 
@@ -161,26 +146,27 @@ def run_hybrid_stress_simulation(
             'open_price': open_price,
             'close_price': close_price,
             'price_change_pct': price_change_pct,
-            'liquidations_tradfi': daily_liquidations,
+            'liquidations_tradfi_adjusted': daily_liquidations,
             'avg_health_factor': avg_hf,
+            'worst_health_factor': worst_hf,
             'unique_liquidated_today': len(liquidated_today)
         })
 
         if idx % 100 == 0:
-            print(f"{date.date()} | Liq: {daily_liquidations} | Avg HF: {avg_hf:.3f}")
+            print(f"{date.date()} | Liq: {daily_liquidations} | Avg HF: {avg_hf:.3f} | Worst HF: {worst_hf:.3f}")
 
-    # ── Final summary ──
     summary = {
         'total_dates': len(price_df),
         'total_positions': len(positions),
         'total_liquidations_all': total_liquidations_all,
         'unique_positions_ever_liquidated': len(positions_ever_liquidated),
         'avg_health_factor_all': np.mean([r['avg_health_factor'] for r in timeseries if r['avg_health_factor'] != float('inf')]),
+        'wc_health_factor_all': np.mean([r['worst_health_factor'] for r in timeseries if r['worst_health_factor'] !=
+                                         float('inf')]),
     }
 
-    # Save timeseries
     ts_df = pd.DataFrame(timeseries)
-    ts_path = os.path.join(output_dir, "hybrid_timeseries.csv")
+    ts_path = os.path.join(output_dir, "hybrid_adjusted_timeseries.csv")
     ts_df.to_csv(ts_path, index=False)
     print(f"Timeseries saved: {ts_path}")
 

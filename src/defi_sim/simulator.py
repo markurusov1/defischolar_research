@@ -1,7 +1,7 @@
 import os
 from typing import Dict
 
-from docs.milestone_2.src.position_loader import create_positions
+from src.position_loader import create_positions
 from run_manager import setup_run_directories, get_timeseries_csv_path
 
 # -------------------  Define crashes to analyze -------------------
@@ -28,7 +28,7 @@ def load_price_df():
     Raises RuntimeError if data_loader is not available or df is missing.
     """
     try:
-        from docs.milestone_2.src import data_loader
+        from src import data_loader
         price_df = data_loader.df
         return price_df
     except Exception as e:
@@ -42,7 +42,7 @@ def prepare_aave_simulator():
     return AaveSimulator()
 
 
-def run_full_simulation(sim, position_objs, price_df, output_dir: str = 'output') -> Dict:
+def run_full_simulation(sim, position_objs, price_df, output_dir: str = '../output') -> Dict:
     """Run simulation over all dates in the price dataframe.
 
     Each trading day:
@@ -184,7 +184,7 @@ def run_full_simulation(sim, position_objs, price_df, output_dir: str = 'output'
     }
 
 
-def run_simulation(n_positions, output_dir: str = 'output', run_id: str = None):
+def run_simulation(n_positions, output_dir: str = '../output', run_id: str = None):
     """High-level entrypoint: create positions, load prices, and run full historical simulation.
 
     Args:
@@ -348,7 +348,7 @@ if __name__ == "__main__":
 
     # Call chart generation
     print(f"\nGenerating analysis charts in {charts_dir}...")
-    from docs.milestone_2.src.defi_sim.generate_analysis_charts import main as generate_charts_main
+    from src.defi_sim.generate_analysis_charts import main as generate_charts_main
 
     generate_charts_main(output_dir=daily_records_dir, output_charts_dir=charts_dir)
 

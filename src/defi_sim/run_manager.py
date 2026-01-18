@@ -15,7 +15,7 @@ def generate_run_id():
     return datetime.now().strftime('run_%Y%m%d_%H%M%S')
 
 
-def setup_run_directories(base_output_dir: str = 'output', run_id: str = None):
+def setup_run_directories(base_output_dir: str = '../output', run_id: str = None):
     """Create the directory structure for a simulation run.
 
     Creates:

@@ -1,5 +1,5 @@
-from ..aave.aave_original import AaveSimulator
-from ..uniswap.il_v3 import UniswapV3Position
+from aave.aave_original import AaveSimulator
+from uniswap.il_v3 import UniswapV3Position
 
 # A simple test of Aave Lending and Uniswap Impermanent Loss calculation
 
