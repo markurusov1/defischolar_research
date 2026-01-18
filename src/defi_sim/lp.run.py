@@ -1,5 +1,5 @@
-from aave.aave_original import AaveSimulator
-from uniswap.il_v3 import UniswapV3Position
+from ..aave.aave_original import AaveSimulator
+from ..uniswap.il_v3 import UniswapV3Position
 
 # A simple test of Aave Lending and Uniswap Impermanent Loss calculation
 
@@ -13,7 +13,7 @@ if __name__ == "__main__":
     position = UniswapV3Position("1234",
         initial_eth_max,
         initial_usdc_max,
-        range_width=0.1
+        range_width=0.1 #this is the concentrated liquidity range in the pool width (±10% here)
     )
     #Get position value at the initial price
     position_value = position.compute_position_value(position.initial_price)

@@ -13,12 +13,12 @@ class UniswapV3Position:
         Initialize the position.
 
         Args:
-            Position ID
+            position id
             initial_eth_max: Maximum ETH to deposit.
             initial_usdc_max: Maximum USDC to deposit.
             range_width: Fractional width for the price range (e.g., 0.1 for ±10%).
         """
-        positionID=id
+        self.position_id=id
         if range_width <= 0 or range_width >= 1:
             raise ValueError("Range width should be between 0 and 1 (exclusive).")
 
@@ -44,7 +44,7 @@ class UniswapV3Position:
         # Actual deposited amounts at initial price
         self.actual_eth, self.actual_usdc = self.get_amounts(self.initial_price)
 
-        print(f"\nPosition {positionID}:")
+        print(f"\nPosition {self.position_id}:")
         print(f"Initial price (USDC per ETH): {self.initial_price:.4f}")
         print(f"Lower bound of range: {self.lower_price:.4f}")
         print(f"Upper bound of range: {self.upper_price:.4f}")
@@ -55,10 +55,8 @@ class UniswapV3Position:
     def get_amounts(self, current_price: float) -> tuple[float, float]:
         """
         Calculate the amounts of ETH and USDC in the position at a given current price.
-
         Args:
             current_price: Current price (USDC per ETH).
-
         Returns:
             (amount_eth, amount_usdc)
         """
@@ -77,12 +75,9 @@ class UniswapV3Position:
     def compute_position_value(self, current_price: float) -> float:
         """
         Compute the value of the LP position at the given current price, in USDC.
-
         This can be fed as collateral value to Aave simulations.
-
         Args:
             current_price: Current price (USDC per ETH).
-
         Returns:
             Position value in USDC.
         """
@@ -92,10 +87,8 @@ class UniswapV3Position:
     def compute_hold_value(self, current_price: float) -> float:
         """
         Compute the value if the actual deposited tokens were simply held (for IL comparison).
-
         Args:
             current_price: Current price (USDC per ETH).
-
         Returns:
             Hold value in USDC.
         """
@@ -104,7 +97,6 @@ class UniswapV3Position:
     def compute_impermanent_loss(self, current_price: float) -> float:
         """
         Compute impermanent loss at the given price.
-
         Returns:
             IL as a decimal (negative = loss).
         """

@@ -1,7 +1,8 @@
 import os
-from position_loader import create_positions
+from typing import Dict
+
+from docs.milestone_2.src.position_loader import create_positions
 from run_manager import setup_run_directories, get_timeseries_csv_path
-from typing import Dict, Tuple
 
 # -------------------  Define crashes to analyze -------------------
 crashes = {
@@ -9,11 +10,17 @@ crashes = {
     'FTX Nov 2022': ('2022-11-01', '2022-11-30'),
 }
 
+# Simulator-level constant
+positions_in_pool = 500
 
-def prepare_positions(n_positions: int = 500):
-    """Create positions and return a list."""
-    positions = create_positions(n_positions=n_positions)
-    return positions
+
+def prepare_positions(n_positions: int = None):
+    """Create positions and return a dict keyed by position ID."""
+    if n_positions is None:
+        n_positions = positions_in_pool
+    positions_list = create_positions(n_positions)
+    # Convert the list to dict: {position_id: position_obj}
+    return {pos.position_id: pos for pos in positions_list}
 
 
 def load_price_df():
@@ -21,11 +28,12 @@ def load_price_df():
     Raises RuntimeError if data_loader is not available or df is missing.
     """
     try:
-        import data_loader
+        from docs.milestone_2.src import data_loader
         price_df = data_loader.df
         return price_df
     except Exception as e:
-        raise RuntimeError("data_loader.py must exist and expose a dataframe `df` with 'date' and 'price' columns") from e
+        raise RuntimeError(
+            "data_loader.py must exist and expose a dataframe `df` with 'date' and 'price' columns") from e
 
 
 def prepare_aave_simulator():
@@ -34,30 +42,7 @@ def prepare_aave_simulator():
     return AaveSimulator()
 
 
-def initialize_loans(lender, positions, price_df) -> Tuple[Dict[str, float], Dict[str, object]]:
-    """Compute initial loan amounts for each position based on its open price.
-
-    Returns:
-        position_loans: dict mapping position id -> loan amount
-        position_objs: dict mapping position id -> position object
-    """
-    position_loans = {}
-    position_objs = {}
-
-    # Use the first date's open_price as the initial price
-    initial_price = float(price_df.iloc[0]['open_price'])
-
-    for i, pos in enumerate(positions):
-        pos_id = f"id#{i}"
-        pos_value = pos.compute_position_value(initial_price)
-        loan_amount = lender.borrow(pos_value)
-        position_loans[pos_id] = loan_amount
-        position_objs[pos_id] = pos
-
-    return position_loans, position_objs
-
-
-def run_full_simulation(sim, position_loans, position_objs, price_df, output_dir: str = 'output') -> Dict:
+def run_full_simulation(sim, position_objs, price_df, output_dir: str = 'output') -> Dict:
     """Run simulation over all dates in the price dataframe.
 
     Each trading day:
@@ -85,27 +70,11 @@ def run_full_simulation(sim, position_loans, position_objs, price_df, output_dir
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
+    # loop over each date in the price dataframe
     for idx, (_, row) in enumerate(price_df.iterrows()):
         date = row['date']
         open_price = float(row['open_price'])
         close_price = float(row['close_price'])
-
-        # --- OPEN: Initialize positions at opening price ---
-        daily_position_loans = {}
-        daily_position_data = {}
-
-        for pid, pos in position_objs.items():
-            pos_value_open = pos.compute_position_value(open_price)
-            loan_amount = sim.borrow(pos_value_open)
-            daily_position_loans[pid] = loan_amount
-
-            # Store seeding information
-            daily_position_data[pid] = {
-                'position_id': pid,
-                'seed_price': open_price,
-                'position_value_at_seed': pos_value_open,
-                'loan_amount': loan_amount,
-            }
 
         # --- DURING DAY: Run liquidation checks at closing price ---
         total_liquidations_day = 0
@@ -115,18 +84,21 @@ def run_full_simulation(sim, position_loans, position_objs, price_df, output_dir
 
         daily_csv_rows = []
 
+        # loop over all positions for the trading day
         for pid, pos in position_objs.items():
             pos_value_open = pos.compute_position_value(open_price)
             pos_value_close = pos.compute_position_value(close_price)
-            loan = daily_position_loans[pid]
+            loan = sim.borrow(pos_value_open) # look up the loan amount for this position
 
-            # Calculate impermanent loss
+            # Calculate hold value and impermanent loss
             hold_value = pos.compute_hold_value(close_price)
             il = pos.compute_impermanent_loss(close_price)
 
+            # Make a liquidation decision and compute a health factor
             decision = sim.decide_liquidation(pos_value_close, loan)
             hf = decision.get('health_factor', float('inf'))
             should_liquidate = decision.get('should_liquidate', False)
+            #  Get penalties, if any
             repay_amount = decision.get('repay_amount', 0.0)
             collateral_to_take = decision.get('collateral_to_take', 0.0)
 
@@ -178,10 +150,6 @@ def run_full_simulation(sim, position_loans, position_objs, price_df, output_dir
         except Exception as e:
             print(f"Error writing daily CSV for {date_str}: {e}")
 
-        # --- CLOSE: Tear down all positions and loans ---
-        daily_position_loans.clear()
-        daily_position_data.clear()
-
         avg_hf_day = (hf_sum_day / hf_count_day) if hf_count_day > 0 else float('inf')
 
         timeseries.append({
@@ -216,7 +184,7 @@ def run_full_simulation(sim, position_loans, position_objs, price_df, output_dir
     }
 
 
-def run_simulation(n_positions: int = 500, output_dir: str = 'output', run_id: str = None):
+def run_simulation(n_positions, output_dir: str = 'output', run_id: str = None):
     """High-level entrypoint: create positions, load prices, and run full historical simulation.
 
     Args:
@@ -229,20 +197,17 @@ def run_simulation(n_positions: int = 500, output_dir: str = 'output', run_id: s
     # Set up run directories
     run_id, daily_records_dir, charts_dir, run_base_dir = setup_run_directories(output_dir, run_id)
 
-    #Open all positions
-    positions = prepare_positions(n_positions=n_positions)
+    # Open all positions
+    positions = prepare_positions(n_positions)
 
     # Load historical data
     price_df = load_price_df()
 
-    #Setup Aave Lending Simulator
+    # Setup Aave Lending Simulator
     lender = prepare_aave_simulator()
 
-    #Borrow money against opened positions
-    position_loans, position_objs = initialize_loans(lender, positions, price_df)
-
-    #Run simulation over all dates and all positions
-    result = run_full_simulation(lender, position_loans, position_objs, price_df, output_dir=daily_records_dir)
+    # Run simulation over all dates and all positions
+    result = run_full_simulation(lender, positions, price_df, output_dir=daily_records_dir)
 
     # Add run metadata to result
     result['run_id'] = run_id
@@ -326,7 +291,8 @@ def export_timeseries_to_csv(timeseries, output_file: str = 'liquidation_timeser
 
     try:
         with open(output_file, 'w', newline='') as csvfile:
-            fieldnames = ['date', 'open_price', 'close_price', 'price_change', 'number_of_liquidations', 'average_health_factor']
+            fieldnames = ['date', 'open_price', 'close_price', 'price_change', 'number_of_liquidations',
+                          'average_health_factor']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             # Write header
@@ -345,7 +311,8 @@ def export_timeseries_to_csv(timeseries, output_file: str = 'liquidation_timeser
                     'close_price': f"{row['close_price']:.2f}",
                     'price_change': f"{price_change:.2f}",
                     'number_of_liquidations': row['total_liquidations'],
-                    'average_health_factor': f"{row['avg_health_factor']:.6f}" if row['avg_health_factor'] != float('inf') else 'inf',
+                    'average_health_factor': f"{row['avg_health_factor']:.6f}" if row['avg_health_factor'] != float(
+                        'inf') else 'inf',
                 })
 
         print(f"CSV file saved to: {output_file}")
@@ -354,7 +321,7 @@ def export_timeseries_to_csv(timeseries, output_file: str = 'liquidation_timeser
 
 
 if __name__ == "__main__":
-    result = run_simulation(n_positions=500)
+    result = run_simulation(positions_in_pool)
 
     summary = result['summary']
     timeseries = result['timeseries']
@@ -381,7 +348,8 @@ if __name__ == "__main__":
 
     # Call chart generation
     print(f"\nGenerating analysis charts in {charts_dir}...")
-    from docs.milestone_2.src.generate_analysis_charts import main as generate_charts_main
+    from docs.milestone_2.src.defi_sim.generate_analysis_charts import main as generate_charts_main
+
     generate_charts_main(output_dir=daily_records_dir, output_charts_dir=charts_dir)
 
     print(f"\n===== SIMULATION COMPLETE =====")
@@ -389,5 +357,3 @@ if __name__ == "__main__":
     print(f"Daily records: {daily_records_dir}")
     print(f"Charts: {charts_dir}")
     print(f"Timeseries CSV: {timeseries_csv_path}")
-
-
